@@ -45,7 +45,7 @@ cmake --build build --config Release
 
 `colorful_yomi`（静的ライブラリ）、`colorful_yomi`（DLL / 共有ライブラリ）、コマンド `cyomi` ができます。
 
-辞書は [Colorful-dictionary](https://github.com/ukagaka-irono/Colorful-dictionary) のリリースから `colorful_talk.dic` を取得するか、
+辞書は [Colorful-dictionary](https://github.com/ukagaka-irono/Colorful-dictionary) の[リリース](https://github.com/ukagaka-irono/Colorful-dictionary/releases/tag/v1)から `colorful_talk.dic` を取得するか、
 そちらの `tools/build_dic.py` で作ってください。
 
 ## コマンド

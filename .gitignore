@@ -1,0 +1,3 @@
+build/
+*.dic
+__pycache__/

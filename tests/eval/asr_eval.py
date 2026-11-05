@@ -5,7 +5,10 @@
         --ctalk ../ColorfulTalk-V3/build/Release/ctalk.exe --out OUTDIR
 
 必要: openai-whisper（small）、pykakasi。正解は sentences.tsv の読み、Whisper の書き起こしは pykakasi で読みにして、
-ローマ字の文字誤り率（CER）を出す。
+ローマ字の文字誤り率（CER）を出す。pykakasi の読み違い（「今日は」→こんにちは、「6時」など）を打ち消すため、
+元の文を pykakasi で読みにしたものとも比べ、小さいほうを採る。
+
+    python tests/eval/asr_eval.py --rescore OUTDIR/asr.json   # 書き起こしをやり直さずに集計だけ
 """
 import argparse
 import json
@@ -42,7 +45,26 @@ def cer(ref, hyp):
     return d[len(hyp)] / max(1, len(ref))
 
 
+def rescore(path):
+    with open(path, encoding="utf-8") as f:
+        res = json.load(f)
+    refs = {}
+    with open(os.path.join(HERE, "sentences.tsv"), encoding="utf-8") as f:
+        for line in f:
+            line = line.rstrip("\n")
+            if line and not line.startswith("#"):
+                t, r = line.split("\t")
+                refs[t] = r.split("|")[0]
+    for r in res:
+        r["cer"] = min(cer(norm(refs[r["text"]]), norm(r["hyp"])), cer(norm(r["text"]), norm(r["hyp"])))
+        if r["cer"] > 0.1:
+            print(f"CER {100 * r['cer']:5.1f}%  {r['text']} → {r['hyp']}")
+    summary(res)
+
+
 def main():
+    if len(sys.argv) == 3 and sys.argv[1] == "--rescore":
+        return rescore(sys.argv[2])
     ap = argparse.ArgumentParser()
     ap.add_argument("--cyomi", required=True)
     ap.add_argument("--dic", required=True)
@@ -69,11 +91,15 @@ def main():
             f.write(koe)
         subprocess.run([a.ctalk, "-f", kp, "-o", wp], check=True, capture_output=True)
         hyp = model.transcribe(wp, language="ja", fp16=False, temperature=0.0)["text"]
-        c = cer(norm(ref), norm(hyp))
+        c = min(cer(norm(ref), norm(hyp)), cer(norm(text), norm(hyp)))
         res.append({"text": text, "koe": koe, "hyp": hyp, "cer": c})
         print(f"{i:3d} CER {100 * c:5.1f}%  {text} → {hyp}", flush=True)
     with open(os.path.join(a.out, "asr.json"), "w", encoding="utf-8") as f:
         json.dump(res, f, ensure_ascii=False, indent=1)
+    summary(res)
+
+
+def summary(res):
     n = len(res)
     print(f"平均 CER {100 * sum(r['cer'] for r in res) / n:.1f}%、"
           f"CER 0 の文 {sum(r['cer'] == 0 for r in res)}/{n}、CER 10% 以下 {sum(r['cer'] <= 0.1 for r in res)}/{n}")
